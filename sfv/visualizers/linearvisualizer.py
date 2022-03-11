@@ -23,11 +23,11 @@ from sfv.visualizers.visualizer import Visualizer
 
 
 
-def _update_links(net, A, F, i2n, pct_link, lw_min, lw_max):
+def _update_edges(net, A, F, i2n, pct_edge, lw_min, lw_max):
     log_flows = np.log10(np.abs(F[np.array(F).nonzero()]))
     flow_max = log_flows.max()
     flow_min = log_flows.min()
-    flow_thr = np.percentile(log_flows, pct_link)
+    flow_thr = np.percentile(log_flows, pct_edge)
 
     ir, ic = np.array(A).nonzero()  # F.to_numpy().nonzero()
     for i, j in zip(ir, ic):
@@ -35,17 +35,17 @@ def _update_links(net, A, F, i2n, pct_link, lw_min, lw_max):
         src = i2n[j]
         f = F[i, j]
 
-        link = net.nxdg[src][tgt]['GRAPHICS']
+        edge = net.nxgraph[src][tgt]['GRAPHICS']
 
-        head_old = link.head
+        head_old = edge.head
         args_head = head_old.width, head_old.height, head_old.offset
         if f > 0:
             head = PosHead(*args_head)
-            color_link = QColor(255, 10, 10, 70)
+            color_edge = QColor(255, 10, 10, 70)
         elif f < 0:
             head = NegHead(*args_head)
-            color_link = QColor(10, 10, 255, 70)
-        else:  # When flow is zero, show the sign of the original link.
+            color_edge = QColor(10, 10, 255, 70)
+        else:  # When flow is zero, show the sign of the original edge.
             if A[i, j] > 0:
                 head = PosHead(*args_head)
             elif A[i, j] < 0:
@@ -53,24 +53,28 @@ def _update_links(net, A, F, i2n, pct_link, lw_min, lw_max):
             else:
                 raise RuntimeError("The logic is abnormal.")
 
-            color_link = QColor(100, 100, 100, 100)
+            color_edge = QColor(100, 100, 100, 100)
 
-        link.head = head
-        link['FILL_COLOR'] = color_link
+        edge.head = head
+        edge['FILL_COLOR'] = color_edge
 
         if f == 0:
-            link.width = lw_min
+            edge.width = lw_min
         elif (flow_max - flow_min) == 0:
-            link.width = 0.5 * (lw_max + lw_min)
+            edge.width = 0.5 * (lw_max + lw_min)
         else:
             log_f = np.log10(np.abs(f))
             log_f = np.clip(log_f, a_min=flow_min, a_max=flow_thr)
             lw = (log_f - flow_min) / (flow_max - flow_min) * (lw_max - lw_min) + lw_min
-            link.width = lw
+            edge.width = lw
 
 
-def _update_single_label_name(net, node, name,
-                              fix_node_size, font):
+def _update_single_label_name(net,
+                              node,
+                              name,
+                              fix_node_size,
+                              font):
+    
     label_name = net.labels[name]
 
     lightness = QColor(node['FILL_COLOR']).lightness()
@@ -92,15 +96,15 @@ def _update_single_label_name(net, node, name,
         node.height = 1.1 * rect.height()
 
 
-def _update_single_label_activity(net, node, x, fix_act_label, fmt, font):
+def _update_single_label_activity(net, node, activity, fix_act_label, fmt, font):
     iden = '%s_act' % node.iden.upper()
-    str_x = fmt % (x)
+    str_x = fmt % (activity)
     if iden not in net.labels:
         label_act = TextLabel(node, text=str_x)
         label_act.iden = iden
     else:
         label_act = net.labels[iden]
-        label_act.text = str_x % (x)
+        label_act.text = str_x % (activity)
 
     if not fix_act_label:
         label_act['FONT'] = font
@@ -120,14 +124,14 @@ class LinearVisualizer(Visualizer):
     def visualize(self,
                   net: nezzle.graphics.Network,
                   F: ArrayLike,
-                  x: ArrayLike,
+                  acts: ArrayLike,
                   A: ArrayLike,
                   n2i: Dict,
                   color_up=None,
                   color_dn=None,
                   lw_min=1.0,
                   lw_max=10.0,
-                  pct_link=90,
+                  pct_edge=90,
                   show_label=True,
                   show_act=True,
                   pct_act=50,
@@ -145,12 +149,11 @@ class LinearVisualizer(Visualizer):
                 A matrix of signal flows.
                 It is usually calculated as W2*x1 - W1*x1,
                 where W is weight matrix and
-                x is a state at steady-state.
+                activity is a state at steady-state.
 
-            x (numpy.ndarray):
-                Changes in the activities. It is usually calculated
-                as x2 - x1, where x is
-                the a vector of activities at steady-state.
+            acts (numpy.ndarray):
+                Changes in the activities, which are usually calculated
+                as x2 - x1. The x1 and x2 are the activities of different conditions.
 
             A (numpy.ndarray):
                 Adjacency matrix of the network.
@@ -167,14 +170,14 @@ class LinearVisualizer(Visualizer):
                 Default is red (i.e., QColor(255, 0, 0)).
 
             lw_min (float):
-                Minimum link width, which is also used for unchanged flow.
+                Minimum edge width, which is also used for unchanged flow.
 
             lw_max (float):
-                Maximum link width.
+                Maximum edge width.
 
-            pct_link (int):
-                Percentile of link width, which is used to set
-                the maximum value for setting link widths.
+            pct_edge (int):
+                Percentile of edge width, which is used to set
+                the maximum value for setting edge widths.
                 Default value is 90.
 
             show_label (bool):
@@ -234,13 +237,13 @@ class LinearVisualizer(Visualizer):
         if not font:
             font = QFont('Arial', 10)
 
-        abs_act = np.abs(x)
+        abs_act = np.abs(acts)
         thr = np.percentile(abs_act, pct_act)
         thr = 1 if thr == 0 else thr
 
-        arr_t = np.zeros_like(x)
+        arr_t = np.zeros_like(acts)
 
-        for i, elem in enumerate(x):
+        for i, elem in enumerate(acts):
             t = np.clip(np.abs(elem) / thr, a_min=0, a_max=1)
             arr_t[i] = t
 
@@ -251,11 +254,11 @@ class LinearVisualizer(Visualizer):
                 radius = 20
                 node.width = node.height = radius
 
-            fold = x[idx]
+            act = acts[idx]
 
-            if fold > 0:
+            if act > 0:
                 color = color_white + arr_t[idx] * (color_up - color_white)
-            elif fold <= 0:
+            elif act <= 0:
                 color = color_white + arr_t[idx] * (color_dn - color_white)
 
             color = np.int32(color)
@@ -268,7 +271,9 @@ class LinearVisualizer(Visualizer):
                                           fix_node_size, font)
 
             if show_act:
-                _update_single_label_activity(net, node, fold,
+                _update_single_label_activity(net,
+                                              node,
+                                              act,
                                               fix_act_label,
                                               fmt_act, font)
             else:
@@ -277,4 +282,4 @@ class LinearVisualizer(Visualizer):
                     net.remove_label(net.labels[iden_label])
         # end of for : update nodes and labels
 
-        _update_links(net, A, F, i2n, pct_link, lw_min, lw_max)
+        _update_edges(net, A, F, i2n, pct_edge, lw_min, lw_max)
