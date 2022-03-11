@@ -117,33 +117,29 @@ class LinearVisualizer(Visualizer):
     def __init__(self):
         pass
 
-    def visualize_(self,
-                   net: nezzle.graphics.Network,
-                   F: ArrayLike,
-                   x: ArrayLike,
-                   A: ArrayLike,
-                   n2i: Dict,
-                   color_up=None,
-                   color_dn=None,
-                   lw_min=1.0,
-                   lw_max=10.0,
-                   pct_link=90,
-                   show_label=True,
-                   show_act=True,
-                   pct_act=50,
-                   fmt_act='%.5f',
-                   fix_node_size=False,
-                   fix_act_label=False,
-                   font=None):
+    def visualize(self,
+                  net: nezzle.graphics.Network,
+                  F: ArrayLike,
+                  x: ArrayLike,
+                  A: ArrayLike,
+                  n2i: Dict,
+                  color_up=None,
+                  color_dn=None,
+                  lw_min=1.0,
+                  lw_max=10.0,
+                  pct_link=90,
+                  show_label=True,
+                  show_act=True,
+                  pct_act=50,
+                  fmt_act='%.5f',
+                  fix_node_size=False,
+                  fix_act_label=False,
+                  font=None):
         """Visualize signal flow using Nezzle.
-
-        SFV (Seamless Flow Viualization) is a light-weight,
-        programming-oriented Python package to visualize
-        graphs and networks.
 
         Args:
             net (nezzle.graphics.Network):
-                Network object that is given by nezzle.
+                Network object of Nezzle.
 
             F (numpy.ndarray):
                 A matrix of signal flows.
